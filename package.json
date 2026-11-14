@@ -1,0 +1,21 @@
+{
+  "name": "club-events-project",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node --test tests/**/*.test.js",
+    "coverage": "node --test --experimental-test-coverage tests/**/*.test.js",
+    "mcp": "node mcp-server/server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.7.0",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "supertest": "^7.0.0"
+  }
+}
