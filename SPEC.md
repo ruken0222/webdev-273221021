@@ -52,7 +52,7 @@ The UI is a small web app using plain HTML, CSS and JavaScript served by the bac
 ## Architecture
 <!-- Exercise 3. One request traced through every layer, naming the file for each one,
      plus one place where your own code does not match this layering. -->
-A request for signing up starts in the route handler, passes through the service that checks membership and capacity, then reaches the data access layer, which writes the registration row in PostgreSQL. The same call path is used by the MCP tool layer, so the tool reads through the same service functions and the same authorization rules. One place the project may diverge from the strict layering is a small UI-side validation helper that prevents a request from being sent at all; it is not business logic and does not run database queries.
+A request to register for a club event starts in app.js, where the route reads the signed-in user from the session and chooses the HTTP status code. The real rule sits in services/registrationService.js: it checks whether the event exists, whether the member already registered, and whether the event is full before writing a row. The database call happens in db.js, which reads and writes the registrations table and the event counts from SQLite. After the data returns, the browser page in app.js renders the updated event list and the client-side button state. One place this project does not match the strict layering is the fetch logic in the HTML page itself: it is in the UI file and not in a separate client module, but it does not query the database and it does not enforce the rule.
 
 ## Acceptance criteria
 <!-- Every criterion carries an id. A test proves it by naming that id in its title, for example

@@ -1,13 +1,16 @@
-const fs = require('node:fs');
-const path = require('node:path');
+const {
+  listFutureEvents,
+  listMyRegistrations,
+  getEventSummary,
+  registerForEvent,
+  cancelRegistration,
+  RegistrationConflictError,
+  NotFoundError,
+} = require('../services/registrationService');
 
-const lectures = JSON.parse(
-  fs.readFileSync(path.join(__dirname, 'lectures.json'), 'utf8')
-);
-
-const listLecturesTool = {
-  name: 'list_lectures',
-  description: 'List the lecture numbers and titles in the course so the model can pick the most relevant one for a follow-up question.',
+const upcomingEventsTool = {
+  name: 'upcoming_events',
+  description: 'Lists future club events with the remaining free places for each event.',
   inputSchema: {
     type: 'object',
     properties: {},
@@ -15,27 +18,47 @@ const listLecturesTool = {
   },
 };
 
-const findLectureTool = {
-  name: 'find_lecture',
-  description: 'Find a lecture by its number and return its title and topics from the course materials.',
+const myRegistrationsTool = {
+  name: 'my_registrations',
+  description: 'Shows the signed-in member only their own registrations and event names.',
   inputSchema: {
     type: 'object',
     properties: {
-      number: {
-        type: 'number',
-        description: 'Lecture number from 1 to 10.',
-      },
+      userId: { type: 'integer', description: 'The signed-in member id.' },
+      token: { type: 'string', description: 'Session token for this user.' },
     },
-    required: ['number'],
+    required: ['userId', 'token'],
     additionalProperties: false,
   },
 };
 
-function getLectureByNumber(number) {
-  const lecture = lectures.find((entry) => entry.number === number);
-  if (!lecture) return null;
-  return lecture;
-}
+const registerTool = {
+  name: 'register',
+  description: 'Registers a member for an event and refuses a request that is already full.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      userId: { type: 'integer', description: 'The member signing up.' },
+      eventId: { type: 'integer', description: 'The event to sign up for.' },
+      token: { type: 'string', description: 'Session token for the member.' },
+    },
+    required: ['userId', 'eventId', 'token'],
+    additionalProperties: false,
+  },
+};
+
+const clubEventDetailsTool = {
+  name: 'club_event_details',
+  description: 'Returns the selected event title, date, place and remaining capacity.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      eventId: { type: 'integer', description: 'The event id to inspect.' },
+    },
+    required: ['eventId'],
+    additionalProperties: false,
+  },
+};
 
 function sendResponse(requestId, payload) {
   if (requestId === undefined || requestId === null) return;
@@ -45,7 +68,7 @@ function sendResponse(requestId, payload) {
 function sendError(requestId, code, message) {
   if (requestId === undefined || requestId === null) return;
   process.stdout.write(
-    `${JSON.stringify({ jsonrpc: '2.0', id: requestId, error: { code, message } })}\n`
+    `${JSON.stringify({ jsonrpc: '2.0', id: requestId, error: { code, message } })}\n`,
   );
 }
 
@@ -56,41 +79,74 @@ function makeToolResult(text, isError = false) {
   };
 }
 
+function authorizeUser(callArgs = {}) {
+  const token = callArgs.token || '';
+  if (process.env.MCP_TOKEN && token !== process.env.MCP_TOKEN) {
+    return null;
+  }
+  const userId = Number(callArgs.userId ?? 1);
+  if (!Number.isInteger(userId) || userId < 1) {
+    return null;
+  }
+  return { id: userId, email: callArgs.email || `member${userId}@club.test` };
+}
+
 function handleToolsCall(requestId, args = {}) {
   const { name, arguments: callArgs = {} } = args;
 
-  if (name === 'find_lecture') {
-    const number = Number(callArgs.number);
-    if (!Number.isInteger(number) || number < 1 || number > 10) {
-      return sendResponse(
-        requestId,
-        {
-          result: makeToolResult(
-            `Lecture ${callArgs.number ?? 'unknown'} does not exist. Choose a lecture number from 1 to 10.`,
-            true,
-          ),
-        }
-      );
-    }
-
-    const lecture = getLectureByNumber(number);
-    if (!lecture) {
-      return sendResponse(
-        requestId,
-        { result: makeToolResult(`Lecture ${number} does not exist. Choose a lecture number from 1 to 10.`, true) }
-      );
-    }
-
+  if (name === 'upcoming_events') {
     return sendResponse(requestId, {
-      result: makeToolResult(`Lecture ${lecture.number}: ${lecture.title}\nTopics: ${lecture.topics}`),
+      result: makeToolResult(JSON.stringify(listFutureEvents(), null, 2)),
     });
   }
 
-  if (name === 'list_lectures') {
-    const lines = lectures.map((lecture) => `Lecture ${lecture.number}: ${lecture.title}`);
+  if (name === 'my_registrations') {
+    const user = authorizeUser(callArgs);
+    if (!user) {
+      return sendResponse(requestId, {
+        result: makeToolResult('The caller is not authorized to read registrations.', true),
+      });
+    }
+
     return sendResponse(requestId, {
-      result: makeToolResult(lines.join('\n')),
+      result: makeToolResult(JSON.stringify(listMyRegistrations(user.id), null, 2)),
     });
+  }
+
+  if (name === 'register') {
+    const user = authorizeUser(callArgs);
+    if (!user) {
+      return sendResponse(requestId, {
+        result: makeToolResult('The caller is not authorized to register.', true),
+      });
+    }
+
+    const eventId = Number(callArgs.eventId ?? callArgs.event_id);
+    try {
+      const result = registerForEvent(user.id, eventId);
+      return sendResponse(requestId, {
+        result: makeToolResult(JSON.stringify(result, null, 2)),
+      });
+    } catch (error) {
+      const message = error instanceof RegistrationConflictError ? error.message : 'Registration failed';
+      return sendResponse(requestId, {
+        result: makeToolResult(message, true),
+      });
+    }
+  }
+
+  if (name === 'club_event_details') {
+    const eventId = Number(callArgs.eventId ?? callArgs.event_id);
+    try {
+      const event = getEventSummary(eventId);
+      return sendResponse(requestId, {
+        result: makeToolResult(JSON.stringify(event, null, 2)),
+      });
+    } catch (error) {
+      return sendResponse(requestId, {
+        result: makeToolResult(error instanceof NotFoundError ? 'Event not found.' : 'Unavailable', true),
+      });
+    }
   }
 
   return sendError(requestId, -32602, `Unknown tool: ${name}`);
@@ -115,7 +171,7 @@ function handleRequest(message) {
       result: {
         protocolVersion: '2025-11-25',
         serverInfo: {
-          name: 'course-mcp-server',
+          name: 'club-events-mcp-server',
           version: '1.0.0',
         },
         capabilities: {
@@ -128,7 +184,7 @@ function handleRequest(message) {
   if (method === 'tools/list') {
     return sendResponse(id, {
       result: {
-        tools: [findLectureTool, listLecturesTool],
+        tools: [upcomingEventsTool, myRegistrationsTool, registerTool, clubEventDetailsTool],
       },
     });
   }
@@ -161,7 +217,7 @@ stdin.on('data', (chunk) => {
       const message = JSON.parse(line);
       handleRequest(message);
     } catch (error) {
-      // Ignore invalid JSON lines; the protocol check validates only valid client requests.
+      // Ignore malformed payloads sent during protocol tests.
     }
   }
 });
@@ -172,7 +228,7 @@ stdin.on('end', () => {
       const message = JSON.parse(buffer);
       handleRequest(message);
     } catch (error) {
-      // Ignore trailing malformed input.
+      // Ignore trailing malformed payloads.
     }
   }
 });
