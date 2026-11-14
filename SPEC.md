@@ -52,7 +52,14 @@ The UI is a small web app using plain HTML, CSS and JavaScript served by the bac
 ## Architecture
 <!-- Exercise 3. One request traced through every layer, naming the file for each one,
      plus one place where your own code does not match this layering. -->
-A request to register for a club event starts in app.js, where the route reads the signed-in user from the session and chooses the HTTP status code. The real rule sits in services/registrationService.js: it checks whether the event exists, whether the member already registered, and whether the event is full before writing a row. The database call happens in db.js, which reads and writes the registrations table and the event counts from SQLite. After the data returns, the browser page in app.js renders the updated event list and the client-side button state. One place this project does not match the strict layering is the fetch logic in the HTML page itself: it is in the UI file and not in a separate client module, but it does not query the database and it does not enforce the rule.
+A request to register for a club event starts in app.js.
+The route reads the signed-in user from the session and translates the outcome into a status code.
+The real rule sits in services/registrationService.js, where the code checks whether the event exists,
+whether the member already registered, and whether the event is full before writing a row.
+The database call happens in db.js, which reads and writes the registrations table and the event counts from SQLite.
+After the data returns, the browser page in app.js renders the updated event list and the client-side button state.
+One place this project does not match the strict layering is the fetch logic in the HTML page itself:
+it is in the UI file and not in a separate client module, but it does not query the database and it does not enforce the rule.
 
 ## Acceptance criteria
 <!-- Every criterion carries an id. A test proves it by naming that id in its title, for example
@@ -79,20 +86,20 @@ A request to register for a club event starts in app.js, where the route reads t
 <!-- Filled in from Exercise 3 onward: each AC id, and the test that names it. -->
 | Criterion | Test |
 | --- | --- |
-| AC-1 | to be filled in Exercise 3 |
-| AC-2 | to be filled in Exercise 3 |
-| AC-3 | to be filled in Exercise 3 |
-| AC-4 | to be filled in Exercise 3 |
-| AC-5 | to be filled in Exercise 3 |
-| AC-6 | to be filled in Exercise 3 |
-| AC-7 | to be filled in Exercise 3 |
-| AC-8 | to be filled in Exercise 3 |
-| AC-9 | to be filled in Exercise 3 |
-| AC-10 | to be filled in Exercise 3 |
-| AC-11 | to be filled in Exercise 3 |
-| AC-12 | to be filled in Exercise 3 |
-| AC-13 | to be filled in Exercise 3 |
-| AC-14 | to be filled in Exercise 3 |
+| AC-1 | a signed-in member sees only future events |
+| AC-2 | a full event is refused and the database stays unchanged |
+| AC-3 | repeated sign-up returns 409 with a single registration row |
+| AC-4 | organizer sees registrations while a regular member does not |
+| AC-5 | a member can cancel their own registration |
+| AC-6 | unauthenticated access is redirected to /login |
+| AC-7 | the seeded event list comes from the database |
+| AC-8 | Google-linked sign-in keeps one account per person |
+| AC-9 | a missing model key leaves the form blank and requests manual input |
+| AC-10 | the MCP register tool matches the HTTP refusal path |
+| AC-11 | deleting an event removes it from the page immediately |
+| AC-12 | root access redirects visitors to /login |
+| AC-13 | the seeded member sees the seeded upcoming events |
+| AC-14 | a second browser without a session is redirected to sign-in |
 
 ## Spec vs result
 <!-- After the agent builds the slice: which criteria passed, which it missed or reinterpreted, and what you changed in this spec because of it. -->

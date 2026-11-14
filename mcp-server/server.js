@@ -8,6 +8,21 @@ const {
   NotFoundError,
 } = require('../services/registrationService');
 
+const lectures = require('./lectures.json');
+
+const findLectureTool = {
+  name: 'find_lecture',
+  description: 'Looks up a lecture by number and returns the title and topic summary for that lecture.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      number: { type: 'number', description: 'The lecture number to look up.' },
+    },
+    required: ['number'],
+    additionalProperties: false,
+  },
+};
+
 const upcomingEventsTool = {
   name: 'upcoming_events',
   description: 'Lists future club events with the remaining free places for each event.',
@@ -93,6 +108,20 @@ function authorizeUser(callArgs = {}) {
 
 function handleToolsCall(requestId, args = {}) {
   const { name, arguments: callArgs = {} } = args;
+
+  if (name === 'find_lecture') {
+    const number = Number(callArgs.number ?? callArgs.lectureNumber);
+    const lecture = lectures.find((item) => Number(item.number) === number);
+    if (!lecture) {
+      return sendResponse(requestId, {
+        result: makeToolResult(`Lecture ${number} was not found.`, true),
+      });
+    }
+
+    return sendResponse(requestId, {
+      result: makeToolResult(`Lecture ${lecture.number}: ${lecture.title}\nTopics: ${lecture.topics}`),
+    });
+  }
 
   if (name === 'upcoming_events') {
     return sendResponse(requestId, {
@@ -184,7 +213,7 @@ function handleRequest(message) {
   if (method === 'tools/list') {
     return sendResponse(id, {
       result: {
-        tools: [upcomingEventsTool, myRegistrationsTool, registerTool, clubEventDetailsTool],
+        tools: [findLectureTool, upcomingEventsTool, myRegistrationsTool, registerTool, clubEventDetailsTool],
       },
     });
   }
